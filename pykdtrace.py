@@ -79,7 +79,7 @@ class BpHandlers:
         if self.dr_name in fileName:
             self.dropProc.append(eprocess.UniqueProcessId)
             dprintln("Add UniqueProcessId %x" % eprocess.UniqueProcessId)
-            #self.bpobject.set()
+            self.bpobject.set()
         return DEBUG_STATUS_GO
 
 
