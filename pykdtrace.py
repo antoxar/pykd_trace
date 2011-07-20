@@ -16,12 +16,16 @@ class Logs:
     def write( self, message ):
         self.file.write( message + "\n" )
 
-    def __del__(self):
-        self.file.close()
+#    def __del__(self):
+#        self.file.close()
 
 class BpDict:
-    def __init__(self, CallbackPtrList, BpHandler):
-        self.modDict = [bp(x, BpHandler) for x in CallbackPtrList()]
+    def __init__(self, CallbackPtrList ):
+        self.bplist = CallbackPtrList()
+        self.modDict = list()
+        
+    def setHandler(self, BpHandler):
+        self.modDict = [bp(x, BpHandler) for x in self.bplist]
         
     def set(self):
         for k in self.modDict:
@@ -33,18 +37,16 @@ class BpDict:
 
 class BpHandlers:
 
-    def __init__(self, name ):
+    def __init__(self, name, bplist ):
         self.bpobject = None
         self.dropProc = list()
         self.logs = Logs()
         self.dr_name = name
-        self.bpobject = BpDict( GetSyscallList, self.SysCallbackHandler )
-        self.bpobject.rem()
+        self.bpobject = bplist
 
-    def  __del__(self):
-        del self.bpobject
+    def __del__(self):
         del self.logs
-
+        
     def GetCurrentProcess(self):
         str = dbgCommand(".printf \"%x\n\", poi(poi(fs:[0x124])+0x50)")
         return int(str, 16)
@@ -90,16 +92,21 @@ def GetSyscallList():
     return loadPtrs( serviceTableStart, serviceCount )
 
 def start(name):
-    handlers = BpHandlers(name)
+    bplist = BpDict( GetSyscallList )
+    handlers = BpHandlers(name, bplist)
+    bplist.setHandler( handlers.SysCallbackHandler)
+    bplist.rem()
     b1 = bp( nt.PspInsertProcess, handlers.CreateProcessHandler)
     b2 = bp( nt.PspProcessDelete, handlers.CloseProcessHandler)
     go()
+    bplist.rem()
+    del handlers.logs
     del handlers
-    dprintln("stopped")
-    
+
 if __name__ == "__main__":
     if len(sys.argv) == 2:
         start(sys.argv[1])
+        dprintln("stopped")
     else:
         dprintln( "Bp Tracer" )
         dprintln( "Using "  + sys.argv[0] + " <PROCESS_NAME>" )
