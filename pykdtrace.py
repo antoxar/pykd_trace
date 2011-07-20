@@ -16,16 +16,12 @@ class Logs:
     def write( self, message ):
         self.file.write( message + "\n" )
 
-#    def __del__(self):
-#        self.file.close()
+    def __del__(self):
+        self.file.close()
 
 class BpDict:
-    def __init__(self, CallbackPtrList ):
-        self.bplist = CallbackPtrList()
-        self.modDict = list()
-        
-    def setHandler(self, BpHandler):
-        self.modDict = [bp(x, BpHandler) for x in self.bplist]
+    def __init__(self, CallbackPtrList, BpHandler):
+        self.modDict = [bp(x, BpHandler) for x in CallbackPtrList()]
         
     def set(self):
         for k in self.modDict:
@@ -37,16 +33,18 @@ class BpDict:
 
 class BpHandlers:
 
-    def __init__(self, name, bplist ):
+    def __init__(self, name ):
         self.bpobject = None
         self.dropProc = list()
         self.logs = Logs()
         self.dr_name = name
-        self.bpobject = bplist
+        self.bpobject = BpDict( GetSyscallList, self.SysCallbackHandler )
+        self.bpobject.rem()
 
-    def __del__(self):
+    def  __del__(self):
+        del self.bpobject
         del self.logs
-        
+
     def GetCurrentProcess(self):
         str = dbgCommand(".printf \"%x\n\", poi(poi(fs:[0x124])+0x50)")
         return int(str, 16)
@@ -92,21 +90,18 @@ def GetSyscallList():
     return loadPtrs( serviceTableStart, serviceCount )
 
 def start(name):
-    bplist = BpDict( GetSyscallList )
-    handlers = BpHandlers(name, bplist)
-    bplist.setHandler( handlers.SysCallbackHandler)
-    bplist.rem()
+    handlers = BpHandlers(name)
     b1 = bp( nt.PspInsertProcess, handlers.CreateProcessHandler)
     b2 = bp( nt.PspProcessDelete, handlers.CloseProcessHandler)
     go()
-    bplist.rem()
     del handlers.logs
+    del handlers.bpobject
     del handlers
-
+    dprintln("stopped")
+    
 if __name__ == "__main__":
     if len(sys.argv) == 2:
         start(sys.argv[1])
-        dprintln("stopped")
     else:
         dprintln( "Bp Tracer" )
         dprintln( "Using "  + sys.argv[0] + " <PROCESS_NAME>" )
